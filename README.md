@@ -2,6 +2,10 @@
 
 **MirageDB** is a developer tool that reads your data models (Java, TypeScript, C#, or SQL) and uses Gemini AI to generate realistic, relational SQL mock data with perfect foreign-key integrity.
 
+## Demo
+
+https://github.com/user-attachments/assets/f29cd764-a071-4053-9389-a7ea160e5000
+
 ## Features
 - **Language Agnostic**: Paste your raw entity classes or DDL scripts; the AI figures out the schema.
 - **Smart Relations**: Automatically maps and respects primary/foreign key constraints across multiple tables.
