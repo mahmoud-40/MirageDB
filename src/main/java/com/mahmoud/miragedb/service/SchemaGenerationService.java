@@ -19,7 +19,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SchemaGenerationService {
 
-    @Value("${gemini.api.key}")
+    @Value("${GEMINI_API_KEY}")
     private String apiKey;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
