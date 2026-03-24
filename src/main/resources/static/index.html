@@ -1,0 +1,864 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MirageDB — Universal SQL Mock Data Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            950: '#020617',
+                            900: '#0f172a',
+                            850: '#131c2e',
+                            800: '#1e293b',
+                            700: '#334155',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#06b6d4',
+                        },
+                        emerald: {
+                            400: '#34d399',
+                            500: '#10b981',
+                        }
+                    },
+                    boxShadow: {
+                        'glow-cyan': '0 0 30px rgba(34, 211, 238, 0.25), 0 0 60px rgba(34, 211, 238, 0.1)',
+                        'glow-cyan-sm': '0 0 15px rgba(34, 211, 238, 0.2)',
+                        'glow-emerald': '0 0 30px rgba(52, 211, 153, 0.25)',
+                        'glass': '0 8px 32px rgba(0,0,0,0.4)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: #020617;
+            background-image:
+                    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(34, 211, 238, 0.06) 0%, transparent 60%),
+                    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(52, 211, 153, 0.05) 0%, transparent 60%);
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: #e2e8f0;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #22d3ee; }
+
+        /* Glassmorphism */
+        .glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+        }
+
+        .glass-card {
+            background: rgba(19, 28, 46, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+
+        /* Code editor area */
+        .code-area {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            background: #070d1a;
+            color: #94a3b8;
+            border: 1px solid rgba(51, 65, 85, 0.6);
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            tab-size: 2;
+        }
+
+        .code-area:focus {
+            border-color: rgba(34, 211, 238, 0.5);
+            box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.08), inset 0 0 30px rgba(34, 211, 238, 0.02);
+            color: #cbd5e1;
+        }
+
+        .code-area::placeholder { color: #334155; }
+
+        /* Line numbers container */
+        .editor-wrapper {
+            position: relative;
+            display: flex;
+            background: #070d1a;
+            border: 1px solid rgba(51, 65, 85, 0.6);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .editor-wrapper:focus-within {
+            border-color: rgba(34, 211, 238, 0.4);
+            box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.07);
+        }
+
+        .line-numbers {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            padding: 16px 10px 16px 14px;
+            color: #1e3a5f;
+            background: rgba(0,0,0,0.2);
+            border-right: 1px solid rgba(51, 65, 85, 0.3);
+            text-align: right;
+            user-select: none;
+            min-width: 44px;
+            white-space: pre;
+            overflow: hidden;
+        }
+
+        .editor-textarea {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            padding: 16px 16px 16px 14px;
+            background: transparent;
+            color: #94a3b8;
+            border: none;
+            resize: none;
+            outline: none;
+            flex: 1;
+            min-height: 320px;
+            tab-size: 2;
+        }
+
+        .editor-textarea::placeholder { color: #2d3f55; }
+        .editor-textarea:focus { color: #cbd5e1; }
+
+        /* Generate button */
+        .btn-generate {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #0e7490 100%);
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.35), 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-generate::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn-generate:hover::before { left: 100%; }
+
+        .btn-generate:hover {
+            box-shadow: 0 0 40px rgba(6, 182, 212, 0.5), 0 6px 25px rgba(0,0,0,0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-generate:active { transform: translateY(0px); }
+        .btn-generate:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        /* Icon buttons */
+        .icon-btn {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+            color: #64748b;
+            transition: all 0.2s ease;
+            padding: 7px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-btn:hover {
+            background: rgba(34, 211, 238, 0.1);
+            border-color: rgba(34, 211, 238, 0.4);
+            color: #22d3ee;
+            box-shadow: 0 0 12px rgba(34, 211, 238, 0.15);
+        }
+
+        /* Spinner */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        /* Toast */
+        @keyframes slideIn {
+            from { transform: translateX(120%); opacity: 0; }
+            to   { transform: translateX(0);    opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0);    opacity: 1; }
+            to   { transform: translateX(120%); opacity: 0; }
+        }
+
+        .toast {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            z-index: 9999;
+            animation: slideIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+            max-width: 380px;
+        }
+        .toast.hide { animation: slideOut 0.3s ease forwards; }
+
+        /* Logo glow */
+        .logo-text {
+            background: linear-gradient(135deg, #22d3ee 0%, #34d399 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Pulse ring for generate button */
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(6,182,212,0.4); }
+            70% { box-shadow: 0 0 0 12px rgba(6,182,212,0); }
+            100% { box-shadow: 0 0 0 0 rgba(6,182,212,0); }
+        }
+
+        .btn-generate:not(:disabled) { animation: pulse-ring 2.5s ease-out infinite; }
+        .btn-generate:not(:disabled):hover { animation: none; }
+
+        /* Badge */
+        .badge {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            padding: 2px 8px;
+            border-radius: 999px;
+            text-transform: uppercase;
+        }
+
+        /* Copy success state */
+        .copy-success { color: #34d399 !important; border-color: rgba(52,211,153,0.4) !important; background: rgba(52,211,153,0.1) !important; }
+
+        /* Output area */
+        .output-area {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            background: #070d1a;
+            color: #64748b;
+            border: none;
+            resize: none;
+            outline: none;
+            width: 100%;
+            min-height: 360px;
+            padding: 16px;
+            tab-size: 2;
+        }
+
+        .output-area.has-content { color: #7dd3fc; }
+
+        /* Divider line */
+        .section-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #475569;
+        }
+
+        /* Subtle grid bg */
+        .grid-bg {
+            background-image: linear-gradient(rgba(34,211,238,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(34,211,238,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="grid-bg">
+
+<!-- ═══════════════════════ NAVBAR ═══════════════════════ -->
+<nav class="glass sticky top-0 z-50 px-6 py-0" style="border-bottom: 1px solid rgba(51,65,85,0.5);">
+    <div class="max-w-7xl mx-auto flex items-center justify-between h-16">
+
+        <!-- Logo -->
+        <div class="flex items-center gap-3">
+            <div class="relative flex items-center justify-center w-9 h-9 rounded-xl" style="background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(52,211,153,0.1)); border: 1px solid rgba(34,211,238,0.3);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="url(#logoGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <defs>
+                        <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#22d3ee"/>
+                            <stop offset="100%" style="stop-color:#34d399"/>
+                        </linearGradient>
+                    </defs>
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+                    <path d="M3 12a9 3 0 0 0 18 0"/>
+                </svg>
+                <!-- spark dot -->
+                <span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400" style="box-shadow: 0 0 6px rgba(34,211,238,0.8);"></span>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight logo-text leading-none">MirageDB</h1>
+                <p class="text-xs text-slate-500 leading-none mt-0.5 font-mono">Any Schema → SQL</p>
+            </div>
+        </div>
+
+        <!-- Nav items -->
+        <div class="flex items-center gap-4">
+            <span class="badge text-cyan-400" style="background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.25);">AI Powered</span>
+            <div class="hidden sm:flex items-center gap-1 text-xs text-slate-500 font-mono">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block" style="box-shadow: 0 0 6px rgba(52,211,153,0.7);"></span>
+                API Ready
+            </div>
+            <a href="#" class="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-cyan-400/5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                Docs
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- ═══════════════════════ HERO ═══════════════════════ -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-4">
+    <div class="text-center mb-10">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium text-cyan-300 mb-5" style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.2);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Instant SQL from Any Data Structure
+        </div>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-3">
+            From Any Schema to <span class="logo-text">Mock Data</span>,<br class="hidden sm:block"/> in Seconds.
+        </h2>
+        <p class="text-slate-400 text-base max-w-xl mx-auto leading-relaxed">
+            Paste any data structure — Java, C#, TypeScript, Go structs, Python dataclasses, or raw SQL <code class="font-mono text-sm text-cyan-400/80">CREATE TABLE</code>. MirageDB’s AI engine parses the schema and generates realistic, relational <code class="font-mono text-sm text-cyan-400/80">INSERT</code> statements instantly.
+        </p>
+        <div class="flex flex-wrap items-center justify-center gap-2 mt-5">
+            <span class="badge text-sky-300" style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);">Java</span>
+            <span class="badge text-violet-300" style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);">C#</span>
+            <span class="badge text-blue-300" style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);">TypeScript</span>
+            <span class="badge text-teal-300" style="background:rgba(94,234,212,0.08);border:1px solid rgba(94,234,212,0.2);">Go Structs</span>
+            <span class="badge text-yellow-300" style="background:rgba(253,224,71,0.08);border:1px solid rgba(253,224,71,0.2);">Python</span>
+            <span class="badge text-orange-300" style="background:rgba(253,186,116,0.08);border:1px solid rgba(253,186,116,0.2);">SQL DDL</span>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════ MAIN SPLIT PANE ═══════════════════════ -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        <!-- ─────── LEFT: INPUT COLUMN ─────── -->
+        <div class="flex flex-col gap-4">
+            <div class="glass-card rounded-2xl overflow-hidden">
+                <!-- Card header -->
+                <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/50">
+                    <div class="flex items-center gap-3">
+                        <!-- Traffic lights -->
+                        <div class="flex gap-1.5">
+                            <span class="w-3 h-3 rounded-full" style="background:#ff5f57;"></span>
+                            <span class="w-3 h-3 rounded-full" style="background:#ffbd2e;"></span>
+                            <span class="w-3 h-3 rounded-full" style="background:#28ca42;"></span>
+                        </div>
+                        <span class="section-label">Define Schema</span>
+                        <span class="badge text-cyan-400" style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25);">Any Format</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="loadExample()" class="icon-btn text-xs font-mono px-3" style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                            Example
+                        </button>
+                        <button onclick="clearInput()" class="icon-btn" title="Clear editor">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Editor with line numbers -->
+                <div class="editor-wrapper" id="editorWrapper" style="border: none; border-radius: 0; min-height: 360px;">
+                    <div class="line-numbers" id="lineNumbers">1</div>
+                    <textarea
+                            id="inputEditor"
+                            class="editor-textarea"
+                            placeholder="// Paste any data structure here...
+//
+// Supported:
+//  • Java @Entity / JPA
+//  • C# EF Core / POCO
+//  • TypeScript interfaces
+//  • Go structs
+//  • Python dataclasses
+//  • SQL CREATE TABLE
+//
+// Hit "Example" above to load a sample →
+                    "
+                    spellcheck="false"
+                    oninput="syncLineNumbers()"
+                    onscroll="syncScroll()"
+                    onkeydown="handleTab(event)"
+                    ></textarea>
+                </div>
+
+                <!-- Editor footer -->
+                <div class="flex items-center justify-between px-5 py-2.5 border-t border-slate-700/40" style="background: rgba(0,0,0,0.15);">
+                    <div class="flex items-center gap-4 text-xs text-slate-600 font-mono">
+                        <span id="charCount">0 chars</span>
+                        <span id="lineCount">1 line</span>
+                        <span>UTF-8</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                        <span class="text-xs text-slate-600">ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <button id="generateBtn" class="btn-generate w-full py-4 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-3 tracking-wide" onclick="generateSQL()">
+                <svg id="btnIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <span id="btnText">Generate SQL</span>
+            </button>
+
+            <!-- Tips card -->
+            <div class="glass-card rounded-xl px-5 py-4">
+                <p class="section-label mb-3">Tips</p>
+                <ul class="space-y-1.5 text-xs text-slate-500 font-mono">
+                    <li class="flex gap-2"><span class="text-cyan-700">→</span> Paste Java, C#, TypeScript, Go, Python or SQL DDL</li>
+                    <li class="flex gap-2"><span class="text-cyan-700">→</span> Annotations like <code class="text-slate-400">@OneToMany</code> help AI infer FKs</li>
+                    <li class="flex gap-2"><span class="text-cyan-700">→</span> Works with JPA, Hibernate, EF Core & more</li>
+                    <li class="flex gap-2"><span class="text-cyan-700">→</span> Mix multiple formats in one paste — AI handles it</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ─────── RIGHT: OUTPUT COLUMN ─────── -->
+        <div class="flex flex-col gap-4">
+            <div class="glass-card rounded-2xl overflow-hidden flex flex-col" style="min-height: 480px;">
+                <!-- Card header -->
+                <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/50">
+                    <div class="flex items-center gap-3">
+                        <div class="flex gap-1.5">
+                            <span class="w-3 h-3 rounded-full" style="background:#1e293b; border: 1px solid #334155;"></span>
+                            <span class="w-3 h-3 rounded-full" style="background:#1e293b; border: 1px solid #334155;"></span>
+                            <span class="w-3 h-3 rounded-full" style="background:#1e293b; border: 1px solid #334155;"></span>
+                        </div>
+                        <span class="section-label">Generated Mock Data</span>
+                        <span class="badge text-emerald-400" id="outputBadge" style="background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2); display: none;">SQL</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="copyBtn" class="icon-btn" title="Copy to clipboard" onclick="copyToClipboard()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
+                        <button id="downloadBtn" class="icon-btn" title="Download .sql file" onclick="downloadSQL()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Output area -->
+                <div class="flex-1 relative" style="background:#070d1a;">
+                    <!-- Empty state -->
+                    <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none" style="padding: 40px;">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center" style="background: rgba(34,211,238,0.05); border: 1px solid rgba(34,211,238,0.1);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(34,211,238,0.3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                                <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+                                <path d="M3 12a9 3 0 0 0 18 0"/>
+                            </svg>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-slate-600 font-mono text-sm">// No output yet</p>
+                            <p class="text-slate-700 text-xs mt-1">Paste entities and hit Generate SQL</p>
+                        </div>
+                    </div>
+
+                    <!-- Loading overlay -->
+                    <div id="loadingOverlay" class="absolute inset-0 hidden flex-col items-center justify-center gap-5" style="background: rgba(7,13,26,0.95); z-index: 10;">
+                        <div class="relative flex items-center justify-center">
+                            <div class="w-14 h-14 rounded-full" style="border: 2px solid rgba(34,211,238,0.1);"></div>
+                            <div class="absolute w-14 h-14 rounded-full" style="border: 2px solid transparent; border-top-color: #22d3ee; animation: spin 0.8s linear infinite;"></div>
+                            <div class="absolute w-8 h-8 rounded-full" style="border: 2px solid transparent; border-top-color: #34d399; animation: spin 1.2s linear infinite reverse;"></div>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-cyan-400 font-mono text-sm font-semibold">Architecting database...</p>
+                            <p class="text-slate-600 text-xs mt-1 font-mono">AI is generating mock data</p>
+                        </div>
+                        <div class="flex gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400" style="animation: pulse 1s ease-in-out infinite;"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400" style="animation: pulse 1s ease-in-out 0.2s infinite;"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400" style="animation: pulse 1s ease-in-out 0.4s infinite;"></span>
+                        </div>
+                    </div>
+
+                    <textarea
+                            id="outputEditor"
+                            class="output-area"
+                            readonly
+                            placeholder=""
+                            spellcheck="false"
+                    ></textarea>
+                </div>
+
+                <!-- Output footer -->
+                <div class="flex items-center justify-between px-5 py-2.5 border-t border-slate-700/40" style="background: rgba(0,0,0,0.15);">
+                    <div class="flex items-center gap-4 text-xs text-slate-600 font-mono">
+                        <span id="stmtCount" class="hidden text-emerald-600">0 statements</span>
+                        <span id="outputSize" class="hidden">0 bytes</span>
+                    </div>
+                    <span class="text-xs text-slate-700 font-mono">read-only</span>
+                </div>
+            </div>
+
+            <!-- SQL syntax legend -->
+            <div class="glass-card rounded-xl px-5 py-4">
+                <p class="section-label mb-3">SQL Legend</p>
+                <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-sky-400"></span><span class="text-slate-500">Keywords</span></div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><span class="text-slate-500">String values</span></div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-slate-500">Numbers</span></div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-violet-400"></span><span class="text-slate-500">Table names</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center py-10 mt-6">
+        <p class="text-xs text-slate-700 font-mono">MirageDB &mdash; AI-powered mock data generator &bull; Built for developers</p>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TOAST CONTAINER ═══════════════════════ -->
+<div id="toastContainer"></div>
+
+<style>
+    @keyframes pulse {
+        0%, 100% { opacity: 0.3; transform: scale(0.8); }
+        50% { opacity: 1; transform: scale(1.1); }
+    }
+</style>
+
+<script>
+    // ─── State ───────────────────────────────────────────────────────────────
+    let isLoading = false;
+
+    // ─── Example Code ────────────────────────────────────────────────────────
+    const exampleCode = `// ─────────────────────────────────────
+// JAVA (JPA / Hibernate)
+// ─────────────────────────────────────
+@Entity
+@Table(name = "users")
+public class User {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(nullable = false, length = 100)
+    private String fullName;
+    @Column(unique = true, nullable = false)
+    private String email;
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<Order> orders;
+}
+
+// ─────────────────────────────────────
+// C# (Entity Framework Core)
+// ─────────────────────────────────────
+public class Product {
+    public int Id { get; set; }
+    [Required, MaxLength(200)]
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+    public int StockQuantity { get; set; }
+    public int CategoryId { get; set; }
+    public Category Category { get; set; }
+}
+
+// ─────────────────────────────────────
+// TypeScript (Interface)
+// ─────────────────────────────────────
+interface Order {
+  id: number;
+  userId: number;
+  totalAmount: number;
+  status: 'PENDING' | 'SHIPPED' | 'DELIVERED';
+  orderDate: Date;
+  items: OrderItem[];
+}
+
+// ─────────────────────────────────────
+// Go (Struct with GORM tags)
+// ─────────────────────────────────────
+type Category struct {
+    ID        uint      \`gorm:"primaryKey"\`
+    Name      string    \`gorm:"not null;size:100"\`
+    CreatedAt time.Time
+    Products  []Product
+}
+
+// ─────────────────────────────────────
+// Python (Dataclass)
+// ─────────────────────────────────────
+@dataclass
+class Review:
+    id: int
+    product_id: int
+    user_id: int
+    rating: float
+    comment: str
+    created_at: datetime
+
+-- ─────────────────────────────────────
+-- SQL CREATE TABLE
+-- ─────────────────────────────────────
+CREATE TABLE payments (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    order_id    BIGINT NOT NULL REFERENCES orders(id),
+    amount      DECIMAL(10,2) NOT NULL,
+    method      VARCHAR(50),
+    paid_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);`;
+
+    // ─── Line Numbers ─────────────────────────────────────────────────────────
+    function syncLineNumbers() {
+        const ta = document.getElementById('inputEditor');
+        const ln = document.getElementById('lineNumbers');
+        const lines = ta.value.split('\n').length;
+        let nums = '';
+        for (let i = 1; i <= Math.max(lines, 1); i++) nums += i + '\n';
+        ln.textContent = nums;
+        updateCharCount();
+    }
+
+    function syncScroll() {
+        const ta = document.getElementById('inputEditor');
+        const ln = document.getElementById('lineNumbers');
+        ln.scrollTop = ta.scrollTop;
+    }
+
+    function updateCharCount() {
+        const val = document.getElementById('inputEditor').value;
+        const lines = val.split('\n').length;
+        document.getElementById('charCount').textContent = val.length + ' chars';
+        document.getElementById('lineCount').textContent = lines + ' line' + (lines > 1 ? 's' : '');
+    }
+
+    function handleTab(e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const ta = e.target;
+            const start = ta.selectionStart;
+            const end = ta.selectionEnd;
+            ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
+            ta.selectionStart = ta.selectionEnd = start + 2;
+            syncLineNumbers();
+        }
+    }
+
+    function loadExample() {
+        document.getElementById('inputEditor').value = exampleCode;
+        syncLineNumbers();
+    }
+
+    function clearInput() {
+        document.getElementById('inputEditor').value = '';
+        syncLineNumbers();
+    }
+
+    // ─── Generate SQL ─────────────────────────────────────────────────────────
+    async function generateSQL() {
+        const inputText = document.getElementById('inputEditor').value.trim();
+
+        if (!inputText) {
+            showToast('warning', 'Empty Input', 'Please paste your entity classes before generating.');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const response = await fetch('http://localhost:8080/api/v1/mirage/generate-sql', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entityClasses: inputText })
+            });
+
+            if (!response.ok) {
+                const errBody = await response.text();
+                throw new Error(`Server responded with ${response.status}: ${errBody || response.statusText}`);
+            }
+
+            const data = await response.json();
+            setOutput(data.generatedSql || '-- No SQL returned from server.');
+            showToast('success', 'SQL Generated!', 'Your mock INSERT statements are ready.');
+
+        } catch (err) {
+            console.error('MirageDB Error:', err);
+            let msg = err.message;
+            if (err instanceof TypeError && err.message.includes('fetch')) {
+                msg = 'Cannot reach the API server at localhost:8080. Is it running?';
+            }
+            showToast('error', 'Generation Failed', msg);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function setLoading(state) {
+        isLoading = state;
+        const btn = document.getElementById('generateBtn');
+        const btnIcon = document.getElementById('btnIcon');
+        const btnText = document.getElementById('btnText');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        btn.disabled = state;
+
+        if (state) {
+            btnIcon.outerHTML = `<div class="spinner" id="btnIcon"></div>`;
+            btnText.textContent = 'Architecting database...';
+            loadingOverlay.style.display = 'flex';
+        } else {
+            const spinner = document.getElementById('btnIcon');
+            if (spinner) {
+                spinner.outerHTML = `<svg id="btnIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`;
+            }
+            btnText.textContent = 'Generate SQL';
+            loadingOverlay.style.display = 'none';
+        }
+    }
+
+    function setOutput(sql) {
+        const out = document.getElementById('outputEditor');
+        const empty = document.getElementById('emptyState');
+        const badge = document.getElementById('outputBadge');
+        const stmtCount = document.getElementById('stmtCount');
+        const outputSize = document.getElementById('outputSize');
+
+        out.value = sql;
+        out.classList.add('has-content');
+        empty.style.display = 'none';
+        badge.style.display = 'inline-flex';
+
+        // Count INSERT statements
+        const stmts = (sql.match(/INSERT INTO/gi) || []).length;
+        stmtCount.textContent = stmts + ' statement' + (stmts !== 1 ? 's' : '');
+        stmtCount.style.display = 'inline';
+        outputSize.textContent = formatBytes(new Blob([sql]).size);
+        outputSize.style.display = 'inline';
+    }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        return (bytes / 1024).toFixed(1) + ' KB';
+    }
+
+    // ─── Copy / Download ──────────────────────────────────────────────────────
+    async function copyToClipboard() {
+        const text = document.getElementById('outputEditor').value;
+        if (!text) { showToast('warning', 'Nothing to Copy', 'Generate SQL first.'); return; }
+        try {
+            await navigator.clipboard.writeText(text);
+            const btn = document.getElementById('copyBtn');
+            btn.classList.add('copy-success');
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+            setTimeout(() => {
+                btn.classList.remove('copy-success');
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+            }, 2000);
+            showToast('success', 'Copied!', 'SQL copied to clipboard.');
+        } catch {
+            showToast('error', 'Copy Failed', 'Your browser blocked clipboard access.');
+        }
+    }
+
+    function downloadSQL() {
+        const text = document.getElementById('outputEditor').value;
+        if (!text) { showToast('warning', 'Nothing to Download', 'Generate SQL first.'); return; }
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mirage_mock_data_${Date.now()}.sql`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('success', 'Downloaded!', 'Your .sql file is ready.');
+    }
+
+    // ─── Toast ────────────────────────────────────────────────────────────────
+    function showToast(type, title, message) {
+        const container = document.getElementById('toastContainer');
+
+        const colors = {
+            success: { border: 'rgba(52,211,153,0.4)', bg: 'rgba(52,211,153,0.08)', icon: '#34d399', iconBg: 'rgba(52,211,153,0.15)' },
+            error:   { border: 'rgba(239,68,68,0.5)',  bg: 'rgba(239,68,68,0.08)',  icon: '#ef4444', iconBg: 'rgba(239,68,68,0.15)' },
+            warning: { border: 'rgba(245,158,11,0.4)', bg: 'rgba(245,158,11,0.08)', icon: '#f59e0b', iconBg: 'rgba(245,158,11,0.15)' },
+        };
+
+        const icons = {
+            success: `<polyline points="20 6 9 17 4 12"/>`,
+            error:   `<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>`,
+            warning: `<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
+        };
+
+        const c = colors[type];
+        const id = 'toast_' + Date.now();
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = 'toast';
+        el.style.cssText = `
+        background: rgba(15,23,42,0.97);
+        backdrop-filter: blur(20px);
+        border: 1px solid ${c.border};
+        border-radius: 14px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+        min-width: 300px;
+      `;
+
+        el.innerHTML = `
+        <div style="width:34px;height:34px;min-width:34px;border-radius:10px;background:${c.iconBg};display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c.icon}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${icons[type]}</svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <p style="font-weight:600;font-size:13px;color:#f1f5f9;margin:0 0 2px;">${title}</p>
+          <p style="font-size:12px;color:#64748b;margin:0;font-family:'JetBrains Mono',monospace;line-height:1.5;word-break:break-all;">${message}</p>
+        </div>
+        <button onclick="dismissToast('${id}')" style="background:none;border:none;cursor:pointer;color:#475569;padding:2px;border-radius:4px;display:flex;align-items:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      `;
+
+        container.appendChild(el);
+
+        // Auto dismiss
+        setTimeout(() => dismissToast(id), 5000);
+    }
+
+    function dismissToast(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.add('hide');
+        setTimeout(() => el.remove(), 300);
+    }
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+    syncLineNumbers();
+</script>
+</body>
+</html>
+</thinking>
